@@ -16,7 +16,7 @@ import {
   updateProfile,
   onAuthStateChanged
 } from "firebase/auth";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, setDoc, collection, query, getDocs } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAsTYsmPAI0D1u8YsBYPNDW31M79if1OUg",
@@ -57,8 +57,16 @@ const Index = () => {
 
   const createUserDocument = async (userId: string, userData: any) => {
     try {
+      // Check if this is the first user
+      const usersCollection = collection(db, "users");
+      const usersQuery = query(usersCollection);
+      const querySnapshot = await getDocs(usersQuery);
+      
+      const isFirstUser = querySnapshot.empty;
+
       await setDoc(doc(db, "users", userId), {
         ...userData,
+        role: isFirstUser ? 'admin' : 'user', // First user becomes admin
         createdAt: new Date().toISOString(),
       });
     } catch (error) {

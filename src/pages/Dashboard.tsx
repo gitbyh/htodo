@@ -1,8 +1,20 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, Timestamp } from "firebase/firestore";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  updateDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  where, 
+  Timestamp,
+  getDocs,
+  DocumentData
+} from "firebase/firestore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,22 +43,22 @@ const Dashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setUser(user);
         // Check if user is admin
-        const checkAdmin = async () => {
-          const userDoc = await getFirestore().collection("users").doc(user.uid).get();
-          setIsAdmin(userDoc.data()?.role === "admin");
-        };
-        checkAdmin();
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)));
+        userDocSnap.forEach((doc) => {
+          setIsAdmin(doc.data()?.role === "admin");
+        });
       } else {
         navigate("/");
       }
     });
 
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, db]);
 
   useEffect(() => {
     if (!user) return;

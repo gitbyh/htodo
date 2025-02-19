@@ -1,11 +1,11 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { useNavigate } from "react-router-dom";
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -13,8 +13,10 @@ import {
   signInWithPopup, 
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
-  updateProfile 
+  updateProfile,
+  onAuthStateChanged
 } from "firebase/auth";
+import { getFirestore, doc, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAsTYsmPAI0D1u8YsBYPNDW31M79if1OUg",
@@ -27,6 +29,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 const Index = () => {
@@ -36,28 +39,53 @@ const Index = () => {
   const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        navigate("/dashboard");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
 
   const validateGmailOnly = (email: string) => {
     return email.toLowerCase().endsWith('@gmail.com');
+  };
+
+  const createUserDocument = async (userId: string, userData: any) => {
+    try {
+      await setDoc(doc(db, "users", userId), {
+        ...userData,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error creating user document:", error);
+      throw error;
+    }
   };
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
       toast({
         title: "Success!",
         description: "Signed in successfully",
       });
+      navigate("/dashboard");
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
         description: error.message || "Failed to sign in",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleRegistration = async (e: React.FormEvent) => {
@@ -77,37 +105,56 @@ const Index = () => {
       await updateProfile(userCredential.user, {
         displayName: username
       });
+      
+      // Create user document in Firestore
+      await createUserDocument(userCredential.user.uid, {
+        username,
+        email,
+        role: 'user'
+      });
+
       toast({
         title: "Success!",
         description: "Registration successful",
       });
-      setIsRegistering(false);
+      navigate("/dashboard");
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
         description: error.message || "Failed to register",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      
+      // Create/update user document for Google sign-in
+      await createUserDocument(result.user.uid, {
+        username: result.user.displayName,
+        email: result.user.email,
+        role: 'user'
+      });
+
       toast({
         title: "Success!",
         description: "Signed in with Google successfully",
       });
+      navigate("/dashboard");
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
         description: error.message || "Failed to sign in with Google",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
